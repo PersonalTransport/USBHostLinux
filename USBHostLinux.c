@@ -224,14 +224,18 @@ static int mainPhase(){
         
         int bytesTransferred;
         int response;
-        char buffer;
+        char buffer[6];
         // Get message type
-        response = libusb_bulk_transfer(handle, OUT, &buffer, 1,
+        response = libusb_bulk_transfer(handle, OUT, buffer, 6,
                                         &bytesTransferred, 0);
         if (response < 0) {
             error(response);
         }
-            printf("%c\n", buffer);
+
+        printf("%d bytes transferred:\n", bytesTransferred);
+        for (int i = 0; i < bytesTransferred; i++)
+            printf("%c", buffer[i]);
+        printf("\n");
 
 //        sleep(1); // sleep is to emulate other operations going on
 
