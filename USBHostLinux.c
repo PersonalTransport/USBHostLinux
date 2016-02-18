@@ -1,8 +1,9 @@
 /*
- * simplectrl.c
- * This file is part of OsciPrime
+ * USBHostLinux.c
  *
- * Copyright (C) 2011 - Manuel Di Cerbo
+ * Richard Barella Jr. (C) 2016
+ *
+ * Credit to Manuel Di Cerbo for original code (2011) "simplectrl.c"
  *
  * OsciPrime is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,8 +20,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, 
  * Boston, MA  02110-1301  USA
  */
-
-	
 
 #include <stdio.h>
 #include <usb.h>
@@ -78,7 +77,6 @@ static char success = 0;
 int main (int argc, char *argv[]){
 	if(init() < 0)
 		return -1;
-	//doTransfer();
 	if(setupAccessory(
 		"Manufacturer",
 		"Model",
@@ -106,10 +104,10 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
 
         int bytesTransferred;
         int response;
-        char buffer[4];
+        char buffer[8];
         // Get message type
         int messageType;
-        response = libusb_bulk_transfer(handle, OUT, buffer, 4,
+        response = libusb_bulk_transfer(handle, OUT, buffer, 8,
                                         &bytesTransferred, 0);
         if (response < 0) {
             if (response == LIBUSB_ERROR_TIMEOUT)
@@ -122,7 +120,7 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
                     & ((int) buffer[3]);
         // Get message length
         int messageLength;
-        response = libusb_bulk_transfer(handle, OUT, buffer, 4,
+        response = libusb_bulk_transfer(handle, OUT, buffer, 8,
                                         &bytesTransferred, 0);
         if (response < 0) {error(response);}
         messageLength = (((int) buffer[0]) << 24)
@@ -131,9 +129,9 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
                       & ((int) buffer[3]);
 
         // Get message data
-        char messageData[messageLength];
+        char messageData[messageLength*2];
         response = libusb_bulk_transfer(handle, OUT,
-                                        messageData, messageLength,
+                                        messageData, messageLength*2,
                                         &bytesTransferred, 0);
         if (response < 0) {error(response);}
         
@@ -200,9 +198,9 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         USBMessage_Destroy(m);
         free(m);
     }
-    //USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage *));
-    //USBMessage_Init(outputMessage, 10, 6, "abcdef");
-    //USBQueue_Enqueue(outputQueue, outputMessage);
+    USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage *));
+    USBMessage_Init(outputMessage, 10, 6, "abcdef");
+    USBQueue_Enqueue(outputQueue, outputMessage);
 }
 
 static int mainPhase(){
@@ -224,20 +222,25 @@ static int mainPhase(){
         
         int bytesTransferred;
         int response;
-        char buffer[6];
-        // Get message type
-        response = libusb_bulk_transfer(handle, OUT, buffer, 6,
+        char buffer[10];
+
+        for (int i = 0; i < 5; i++)
+            buffer[i] = 'a'+i;
+
+        // Send message
+        response = libusb_bulk_transfer(handle, IN, buffer, 5,
                                         &bytesTransferred, 0);
         if (response < 0) {
             error(response);
         }
 
+        response = libusb_bulk_transfer(handle, OUT, buffer, 10,
+                                        &bytesTransferred, 0);
+
         printf("%d bytes transferred:\n", bytesTransferred);
         for (int i = 0; i < bytesTransferred; i++)
             printf("%c", buffer[i]);
         printf("\n");
-
-//        sleep(1); // sleep is to emulate other operations going on
 
     }
     
