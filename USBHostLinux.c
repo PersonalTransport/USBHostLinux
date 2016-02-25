@@ -26,6 +26,7 @@
 #include <libusb.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "USBQueue.h"
 
@@ -99,42 +100,39 @@ int main (int argc, char *argv[]){
 }
 
 void ReceiveUSBInput(USBQueue *inputQueue) {
+        
+        printf("ReceiveUSBInput\n");
+
         if (USBQueue_Length(inputQueue) >= MAX_QUEUE_LENGTH)
             return; // don't let our queue fill up too much
 
         int bytesTransferred;
         int response;
-        char buffer[8];
+        char buffer[100];
         // Get message type
         int messageType;
-        response = libusb_bulk_transfer(handle, OUT, buffer, 8,
-                                        &bytesTransferred, 0);
+        response = libusb_bulk_transfer(handle, OUT, buffer, 100,
+                                        &bytesTransferred, 1);
         if (response < 0) {
             if (response == LIBUSB_ERROR_TIMEOUT)
                 return; // NO MESSAGE SO RETURN
             error(response);
         }
-        messageType = (((int) buffer[0]) << 24)
-                    & (((int) buffer[1]) << 16)
-                    & (((int) buffer[2]) << 8)
-                    & ((int) buffer[3]);
+        messageType = ((((int) buffer[0]) << 24) & 0xFF000000)
+                    | ((((int) buffer[1]) << 16) & 0x00FF0000)
+                    | ((((int) buffer[2]) << 8) & 0x0000FF00)
+                    | (((int) buffer[3]) & 0x000000FF);
         // Get message length
         int messageLength;
-        response = libusb_bulk_transfer(handle, OUT, buffer, 8,
-                                        &bytesTransferred, 0);
-        if (response < 0) {error(response);}
-        messageLength = (((int) buffer[0]) << 24)
-                      & (((int) buffer[1]) << 16)
-                      & (((int) buffer[2]) << 8)
-                      & ((int) buffer[3]);
-
-        // Get message data
-        char messageData[messageLength*2];
-        response = libusb_bulk_transfer(handle, OUT,
-                                        messageData, messageLength*2,
-                                        &bytesTransferred, 0);
-        if (response < 0) {error(response);}
+        messageLength = ((((int) buffer[4]) << 24) & 0xFF000000)
+                      | ((((int) buffer[5]) << 16) & 0x00FF0000)
+                      | ((((int) buffer[6]) << 8) & 0x0000FF00)
+                      | (((int) buffer[7]) & 0x000000FF);
         
+        assert(bytesTransferred == messageLength + 8);
+
+        char *messageData = buffer + 8;
+
         // enqueue message
         USBMessage *m = (USBMessage *) malloc(sizeof(USBMessage));
         USBMessage_Init(m, messageType, messageLength, messageData);
@@ -142,48 +140,44 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
 }
 
 void SendUSBOutput(USBQueue *outputQueue) {
+
+    printf("SendUSBOutput\n");
+
     if (USBQueue_IsEmpty(outputQueue))
         return;
     int response;
     int bytesTransferred;
-    char buffer[4];
+    char buffer[100];
     
     USBMessage *m = USBQueue_Dequeue(outputQueue);
 
     // Transfer message type
-    buffer[0] = (char) (m->messageType >> 24);
-    buffer[1] = (char) (m->messageType >> 16);
-    buffer[2] = (char) (m->messageType >> 8);
-    buffer[3] = (char) (m->messageType);
-
-    response = libusb_bulk_transfer(handle, IN, buffer, 4, &bytesTransferred, 0);
-    if (response < 0) {
-        error(response);
-        USBMessage_Destroy(m);
-        free(m);
-    }
+    buffer[0] = (char) ((m->messageType >> 24) & 0xFF);
+    buffer[1] = (char) ((m->messageType >> 16) & 0xFF);
+    buffer[2] = (char) ((m->messageType >> 8) & 0xFF);
+    buffer[3] = (char) ((m->messageType) & 0xFF);
 
     // Transfer message length
-    buffer[0] = (char) (m->messageLength >> 24);
-    buffer[1] = (char) (m->messageLength >> 16);
-    buffer[2] = (char) (m->messageLength >> 8);
-    buffer[3] = (char) (m->messageLength);
+    buffer[4] = (char) ((m->messageLength >> 24) & 0xFF);
+    buffer[5] = (char) ((m->messageLength >> 16) & 0xFF);
+    buffer[6] = (char) ((m->messageLength >> 8) & 0xFF);
+    buffer[7] = (char) ((m->messageLength) & 0xFF);
 
-    response = libusb_bulk_transfer(handle, IN, buffer, 4, &bytesTransferred, 0);
-    if (response < 0) {
-        error(response);
-        USBMessage_Destroy(m);
-        free(m);
-    }
+    // Data
+    for (int i = 0; i < m->messageLength; i++)
+        buffer[i + 8] = m->messageData[i];
 
-    // Transfer message data
-    response = libusb_bulk_transfer(handle, IN, m->messageData, m->messageLength, &bytesTransferred, 0);
+    // Transfer message
+    response = libusb_bulk_transfer(handle, IN, buffer, m->messageLength + 8, &bytesTransferred, 1);
 
     USBMessage_Destroy(m);
     free(m);
 }
 
 void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
+
+    printf("ProcessUSBInput\n");
+
     if (!USBQueue_IsEmpty(inputQueue)) {
         USBMessage *m = USBQueue_Dequeue(inputQueue);
 
@@ -198,9 +192,11 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         USBMessage_Destroy(m);
         free(m);
     }
-    USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage *));
-    USBMessage_Init(outputMessage, 10, 6, "abcdef");
-    USBQueue_Enqueue(outputQueue, outputMessage);
+    if (USBQueue_Length(outputQueue) < MAX_QUEUE_LENGTH) {
+        USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage *));
+        USBMessage_Init(outputMessage, 10, 4, "abcd");
+        USBQueue_Enqueue(outputQueue, outputMessage);
+    }
 }
 
 static int mainPhase(){
@@ -216,31 +212,37 @@ static int mainPhase(){
 
     while (1) {
 
-        //ReceiveUSBInput(&inputQueue);
-        //SendUSBOutput(&outputQueue);
-        //ProcessUSBInput(&inputQueue, &outputQueue);
+        ReceiveUSBInput(&inputQueue);
+        ProcessUSBInput(&inputQueue, &outputQueue);
+        SendUSBOutput(&outputQueue);
         
-        int bytesTransferred;
-        int response;
-        char buffer[10];
+        //int bytesTransferred;
+        //int response;
+        //char buffer[12];
 
-        for (int i = 0; i < 5; i++)
-            buffer[i] = 'a'+i;
+        //for (int i = 0; i < 12; i++)
+        //    buffer[i] = 'a'+i;
 
-        // Send message
-        response = libusb_bulk_transfer(handle, IN, buffer, 5,
-                                        &bytesTransferred, 0);
-        if (response < 0) {
-            error(response);
-        }
+        //// Send message
+        //response = libusb_bulk_transfer(handle, IN, buffer, 12,
+        //                                &bytesTransferred, 0);
+        //if (response < 0) {
+        //    error(response);
+        //}
+        //printf("%d bytes transferred:\n", bytesTransferred);
+        //printf("\"");
+        //for (int i = 0; i < bytesTransferred; i++)
+        //    printf("%c", buffer[i]);
+        //printf("\"\n");
 
-        response = libusb_bulk_transfer(handle, OUT, buffer, 10,
-                                        &bytesTransferred, 0);
+        //response = libusb_bulk_transfer(handle, OUT, buffer, 12,
+        //                                &bytesTransferred, 0);
 
-        printf("%d bytes transferred:\n", bytesTransferred);
-        for (int i = 0; i < bytesTransferred; i++)
-            printf("%c", buffer[i]);
-        printf("\n");
+        //printf("%d bytes received:\n", bytesTransferred);
+        //printf("\"");
+        //for (int i = 0; i < bytesTransferred; i++)
+        //    printf("%c", buffer[i]);
+        //printf("\"\n");
 
     }
     
