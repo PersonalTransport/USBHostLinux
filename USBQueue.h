@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "USBMessage.h"
+
 #ifndef true
 #define true 1
 #endif
@@ -14,12 +16,6 @@
 #ifndef bool
 #define bool int
 #endif
-
-typedef struct _USBMessage {
-    int messageType;
-    int messageLength;
-    char *messageData;
-} USBMessage;
 
 typedef struct _USBQueueNode {
     struct _USBQueueNode *next;
@@ -39,9 +35,6 @@ int USBQueue_Length(USBQueue *q);
 void USBQueue_Enqueue(USBQueue *q, USBMessage *m);
 USBMessage * USBQueue_Dequeue(USBQueue *q);
 
-void USBMessage_Init(USBMessage *m, int messageType, int messageLength, char *messageData);
-void USBMessage_Destroy(USBMessage *m);
-
 void USBQueue_Init(USBQueue *q) {
     assert(q != NULL);
     q->head = NULL;
@@ -53,7 +46,6 @@ void USBQueue_Destroy(USBQueue *q) {
     assert(q != NULL);
     while (!USBQueue_IsEmpty(q)) {
         USBMessage *m = USBQueue_Dequeue(q);
-        USBMessage_Destroy(m);
         free(m);
     }
 }
@@ -116,21 +108,6 @@ USBMessage * USBQueue_Dequeue(USBQueue *q) {
         q->length -= 1;
         return m;
     }
-}
-
-void USBMessage_Init(USBMessage *m, int messageType, int messageLength, char *messageData) {
-    assert(m != NULL);
-    char *newData = (char *) malloc(messageLength);
-    for (int i = 0; i < messageLength; i++)
-        newData[i] = messageData[i];
-    m->messageType = messageType;
-    m->messageLength = messageLength;
-    m->messageData = newData;
-}
-
-void USBMessage_Destroy(USBMessage *m) {
-    assert(m != NULL);
-    free(m->messageData);
 }
 
 #endif /* USBQUEUE */
