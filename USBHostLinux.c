@@ -37,8 +37,8 @@
 #define IN 0x02
 
 // VID and PID when android is in host mode
-#define VID 0x04e8
-#define PID 0x6860
+#define VID 0x22b8
+#define PID 0x2e76
 
 // VID and PID after android is turned into accessory mode
 #define ACCESSORY_VID 0x18d1
@@ -173,6 +173,11 @@ void SendUSBOutput(USBQueue *outputQueue) {
 }
 
 void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
+    int input_test;
+    int input_data;
+    char output_data[2];
+    int output_sid;
+
 
     printf("ProcessUSBInput\n");
 
@@ -193,16 +198,46 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     }
     
     // send some test data
+    // TEST _ JOSEPH
     if (USBQueue_Length(outputQueue) < MAX_QUEUE_LENGTH) {
+        printf("+++PLEASE ENTER DATA TO SEND+++\n>");
+        input_test = true;
+        while (input_test) {
+            scanf("%d", &input_data);
+            if (input_data < 99 && input_data >= 0) {
+                sprintf(output_data, "%02d", input_data);
+                input_test = false;
+            } else {
+                printf("++Please make sure the number is between 0 and 99\n>");
+            }
+        }
+        
+        printf("+=Here is your number to send = %s", output_data);
+        
+        printf("===Send to which object (sid)? (Enum{ lights = 1, turn_signal=2, battery=3, speed=4})===\n>");
+        input_test = true;
+        while (input_test) {
+            scanf("%d", &input_data);
+            if (input_data < 5 && input_data >= 0) {
+                output_sid = input_data;    
+                input_test = false;
+            } else {
+                printf("==Please make sure the number is between 0 and 4\n>");
+            }
+        
+        }
+        printf("+=Here is your sid to send = %d", output_sid);
+        
         USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage));
 
-        char data_send[20] = "abcd: this is a test";
+        //char data_send[20] = "abcd: this is a test";
         
         USBMessage_Init(outputMessage,
                         USBMESSAGE_COMM_SET_VAR,
-                        USBMESSAGE_SID_LIGHTS,
-                        20, // length
-                        data_send);
+                        output_sid,
+                        //USBMESSAGE_SID_LIGHTS,
+                        strlen(output_data), // length
+                        output_data);
         USBQueue_Enqueue(outputQueue, outputMessage);
     }
 }
