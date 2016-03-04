@@ -37,8 +37,14 @@
 #define IN 0x02
 
 // VID and PID when android is in host mode
-#define VID 0x22b8
-#define PID 0x2e76
+
+//      Joseph's VID and PID
+//#define VID 0x22b8
+//#define PID 0x2e76
+
+//      Ricky's VID and PID
+#define VID 0x04e8
+#define PID 0x6860
 
 // VID and PID after android is turned into accessory mode
 #define ACCESSORY_VID 0x18d1
@@ -175,9 +181,14 @@ void SendUSBOutput(USBQueue *outputQueue) {
 void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     int input_test;
     int input_data;
-    char output_data[2];
+    char output_data[4];
     int output_sid;
+    char output_sid_str[20];
 
+    char lights_sid_str[20]      = "LIGHTS";
+    char turn_signal_sid_str[20] = "TURN_SIGNAL";
+    char battery_sid_str[20]     = "BATTERY";
+    char speed_sid_str[20]       = "SPEED";
 
     printf("ProcessUSBInput\n");
 
@@ -205,7 +216,12 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         while (input_test) {
             scanf("%d", &input_data);
             if (input_data < 99 && input_data >= 0) {
-                sprintf(output_data, "%02d", input_data);
+                
+                output_data[0] = (char) ((input_data >> 24) & 0xFF);
+                output_data[1] = (char) ((input_data >> 16) & 0xFF);
+                output_data[2] = (char) ((input_data >> 8) & 0xFF);
+                output_data[3] = (char) ((input_data) & 0xFF);
+
                 input_test = false;
             } else {
                 printf("++Please make sure the number is between 0 and 99\n>");
@@ -218,15 +234,35 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         input_test = true;
         while (input_test) {
             scanf("%d", &input_data);
-            if (input_data < 5 && input_data >= 0) {
-                output_sid = input_data;    
+            if (input_data < 5 && input_data > 0) {
+
+                switch (input_data) {
+                    case 1:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = lights_sid_str[i];
+                        break;
+                    case 2:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = turn_signal_sid_str[i];
+                        break;
+                    case 3:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = battery_sid_str[i];
+                        break;
+                    case 4:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = speed_sid_str[i];
+                        break;
+                    default:
+                        break;
+                }
+
                 input_test = false;
             } else {
-                printf("==Please make sure the number is between 0 and 4\n>");
+                printf("==Please make sure the number is between 1 and 4\n>");
             }
         
         }
-        printf("+=Here is your sid to send = %d", output_sid);
         
         USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage));
 
@@ -234,10 +270,10 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         
         USBMessage_Init(outputMessage,
                         USBMESSAGE_COMM_SET_VAR,
-                        output_sid,
-                        //USBMESSAGE_SID_LIGHTS,
-                        strlen(output_data), // length
+                        output_sid_str,
+                        4, // length
                         output_data);
+        printf("+=Here is your sid to send = %d\n", USBMessage_Get_SID(outputMessage));
         USBQueue_Enqueue(outputQueue, outputMessage);
     }
 }
