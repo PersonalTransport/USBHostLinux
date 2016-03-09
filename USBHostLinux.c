@@ -39,12 +39,12 @@
 // VID and PID when android is in host mode
 
 //      Joseph's VID and PID
-//#define VID 0x22b8
-//#define PID 0x2e76
+#define VID 0x22b8
+#define PID 0x2e76
 
 //      Ricky's VID and PID
-#define VID 0x04e8
-#define PID 0x6860
+//#define VID 0x04e8
+//#define PID 0x6860
 
 // VID and PID after android is turned into accessory mode
 #define ACCESSORY_VID 0x18d1
@@ -189,6 +189,9 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     char turn_signal_sid_str[20] = "TURN_SIGNAL";
     char battery_sid_str[20]     = "BATTERY";
     char speed_sid_str[20]       = "SPEED";
+    char hazard_sid_str[20]      = "HAZARD";
+    char defrost_sid_str[20]     = "DEFROST";
+    char wipers_sid_str[20]      = "WIPERS";
 
     printf("ProcessUSBInput\n");
 
@@ -200,10 +203,7 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         printf("Message comm:   %d\n", (int) m->comm);
         printf("Message sid:    %d\n", USBMessage_Get_SID(m));
         printf("Message length: %d\n", (int) m->length);
-        printf("Message data: ");
-        for (int i = 0; i < m->length; i++)
-            printf("%c", m->data[i]);
-        printf("\n");
+        printf("Message data: %d\n", (int) char_Array_to_Int(m->data));
 
         free(m);
     }
@@ -215,7 +215,7 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
         input_test = true;
         while (input_test) {
             scanf("%d", &input_data);
-            if (input_data < 99 && input_data >= 0) {
+            if (input_data <= 99 && input_data >= 0) {
                 
                 output_data[0] = (char) ((input_data >> 24) & 0xFF);
                 output_data[1] = (char) ((input_data >> 16) & 0xFF);
@@ -228,30 +228,50 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
             }
         }
         
-        printf("+=Here is your number to send = %s", output_data);
+        printf("+=Here is your number to send = %s\n", output_data);
         
-        printf("===Send to which object (sid)? (Enum{ lights = 1, turn_signal=2, battery=3, speed=4})===\n>");
+        printf("+-LIGHTS = %d\n", signalHash(lights_sid_str, 0));
+        printf("+-TURN_SIGNAL = %d\n", signalHash(turn_signal_sid_str, 0));
+        printf("+-BATTERY = %d\n", signalHash(battery_sid_str, 0));
+        printf("+-SPEED = %d\n", signalHash(speed_sid_str, 0));
+        
+        printf("===Send to which object (sid)? (Enum{ lights = 1, turn_signal=2, battery=3, speed=4, hazard=5, AC=6, wipers=7})===\n>");
         input_test = true;
         while (input_test) {
             scanf("%d", &input_data);
-            if (input_data < 5 && input_data > 0) {
+            if (input_data < 8 && input_data > 0) {
 
                 switch (input_data) {
                     case 1:
                         for (int i = 0; i < 20; i++)
                             output_sid_str[i] = lights_sid_str[i];
+                            printf("got to lights\n");
                         break;
                     case 2:
                         for (int i = 0; i < 20; i++)
                             output_sid_str[i] = turn_signal_sid_str[i];
+                            printf("got to turn signal\n");
                         break;
                     case 3:
                         for (int i = 0; i < 20; i++)
                             output_sid_str[i] = battery_sid_str[i];
+                            printf("got to battery\n");
                         break;
                     case 4:
                         for (int i = 0; i < 20; i++)
                             output_sid_str[i] = speed_sid_str[i];
+                        break;
+                    case 5:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = hazard_sid_str[i];
+                        break;
+                    case 6:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = defrost_sid_str[i];
+                        break;
+                    case 7:
+                        for (int i = 0; i < 20; i++)
+                            output_sid_str[i] = wipers_sid_str[i];
                         break;
                     default:
                         break;
