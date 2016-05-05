@@ -84,10 +84,10 @@ int main (int argc, char *argv[]){
     if(init() < 0)
         return -1;
     if(setupAccessory(
-        "Manufacturer",
-        "Model",
+        "Personal Transportation Solutions",
+        "EvMaster",
         "Description",
-        "VersionName",
+        "0.1",
         "http://neuxs-computing.ch",
         "2254711SerialNo.") < 0){
         fprintf(stdout, "Error setting up accessory\n");
