@@ -11,7 +11,7 @@ Currently, the program just sends data and waits for responses to test communica
 
 ### Instructions to Run C-code (from Linux) - for use with associated Android Studio Project:
 
-- install usbutils and libusb (tested version: 0.1.12)
+- install usbutils and libusb (tested version: 0.1.12 :: for Debian distro's: sudo apt-get install libusb-dev, or see http://www.libusb.org/ for more information)
 - copy additional file in directory (USBMessage.h - provides specific data formatting and interpretation functions for USB communication)
 - Extra: Possibly update VID and PID in USBHostLinux.c to your android's VID and PID (#define VID 0x22b8, for example). Use "lsusb -v | less" and find your device (look at the idVendor & idProduct ==> replace VID and PID with numbers)
 - run make
