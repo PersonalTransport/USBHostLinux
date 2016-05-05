@@ -25,26 +25,27 @@
 #include <string.h>
 #include <unistd.h>
 #include <assert.h>
+#include <ncurses.h>
 
 #include "USBQueue.h"
 #include "USBMessage.h"
 
 // Endpoints
-//#define IN 0x81
-//#define OUT 0x02
-
 #define OUT 0x81
 #define IN 0x02
+
+//#define OUT 0x83
+//#define IN 0x02
 
 // VID and PID when android is in host mode
 
 //      Joseph's VID and PID
-#define VID 0x22b8
-#define PID 0x2e76
+//#define VID 0x22b8
+//#define PID 0x2e76
 
 //      Ricky's VID and PID
-//#define VID 0x04e8
-//#define PID 0x6860
+#define VID 0x04e8
+#define PID 0x6860
 
 // VID and PID after android is turned into accessory mode
 #define ACCESSORY_VID 0x18d1
@@ -81,32 +82,40 @@ static char stop;
 static char success = 0;
 
 int main (int argc, char *argv[]){
-    if(init() < 0)
+    initscr();
+    if(init() < 0) {
+        endwin();
         return -1;
+    }
     if(setupAccessory(
-        "Manufacturer",
-        "Model",
+        "Personal Transportation Solutions",
+        "EvMaster",
         "Description",
-        "VersionName",
+        "0.1",
         "http://neuxs-computing.ch",
         "2254711SerialNo.") < 0){
-        fprintf(stdout, "Error setting up accessory\n");
+        printw( "Error setting up accessory\n");
+        refresh();
         deInit();
         return -1;
-    };
+    }
     if(mainPhase() < 0){
-        fprintf(stdout, "Error during main phase\n");
+        printw( "Error during main phase\n");
+        refresh();
         deInit();
+        endwin();
         return -1;
     }   
     deInit();
-    fprintf(stdout, "Done, no errors\n");
+    printw( "Done, no errors\n");
+    refresh();
+    endwin();
     return 0;
 }
 
 void ReceiveUSBInput(USBQueue *inputQueue) {
         
-        printf("ReceiveUSBInput\n");
+        //printw("ReceiveUSBInput\n");
 
         if (USBQueue_Length(inputQueue) >= MAX_QUEUE_LENGTH)
             return; // don't let our queue fill up too much
@@ -118,7 +127,7 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
         
         // Get message data
         response = libusb_bulk_transfer(handle, OUT, buffer, 262,
-                                        &bytesTransferred, 0);
+                                        &bytesTransferred, 10);
         if (response < 0) {
             if (response == LIBUSB_ERROR_TIMEOUT){
                 free(buffer);
@@ -137,51 +146,45 @@ void ReceiveUSBInput(USBQueue *inputQueue) {
 
 void SendUSBOutput(USBQueue *outputQueue) {
 
-    printf("SendUSBOutput\n");
+    //printw("SendUSBOutput\n");
 
     if (USBQueue_IsEmpty(outputQueue))
         return;
         
     int response;
     int bytesTransferred;
-//    char buffer[262];
-//    for (int i = 0; i < 262; i++)
-//        buffer[i] = (char) 0;
     
     USBMessage *m = USBQueue_Dequeue(outputQueue);
 
-    // Transfer message comm
-    //buffer[0] = (char) m->comm;
-    
-    // Transfer sid
-    //buffer[1] = (char) m->sid[0];
-    //buffer[2] = (char) m->sid[1];
-    //buffer[3] = (char) m->sid[2];
-    //buffer[4] = (char) m->sid[3];
-
-    // Transfer message length
-    //buffer[5] = (char) m->length
-
-    // Data
-    //for (int i = 0; i < m->messageLength; i++)
-    //    buffer[i + MESSAGE_DATA_OFFSET] = m->messageData[i];
-
-    // Transfer message
-    //response = libusb_bulk_transfer(handle, IN, buffer, m->messageLength + 8, &bytesTransferred, 1);
-    
-    // Could also do this (but I don't know if it will work)
-//    response = libusb_bulk_transfer(handle, IN, (char *) m,
     response = libusb_bulk_transfer(handle, IN, (char *) m,
                                     m->length + MESSAGE_DATA_OFFSET,
-                                    &bytesTransferred, 0);
+                                    &bytesTransferred, 10);
 
     free(m);
+}
+
+void int_to_bytes(char *out, int in) {
+    out[0] = (char) ((in >> 24) & 0xFF);
+    out[1] = (char) ((in >> 16) & 0xFF);
+    out[2] = (char) ((in >> 8) & 0xFF);
+    out[3] = (char) ((in) & 0xFF);
 }
 
 void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     int input_test;
     int input_data;
+    char output_data_1[4]; int_to_bytes(output_data_1, 0);
+    char output_data_2[4]; int_to_bytes(output_data_2, 11);
+    char output_data_3[4]; int_to_bytes(output_data_3, 23);
+    char output_data_4[4]; int_to_bytes(output_data_4, 35);
+    char output_data_5[4]; int_to_bytes(output_data_5, 47);
+    char output_data_6[4]; int_to_bytes(output_data_6, 52);
+    char output_data_7[4]; int_to_bytes(output_data_7, 60);
+    char output_data_8[4]; int_to_bytes(output_data_8, 74);
+    char output_data_9[4]; int_to_bytes(output_data_9, 82);
+    char output_data_0[4]; int_to_bytes(output_data_0, 99);
     char output_data[4];
+    
     int output_sid;
     char output_sid_str[20];
 
@@ -193,17 +196,19 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     char defrost_sid_str[20]     = "DEFROST";
     char wipers_sid_str[20]      = "WIPERS";
 
-    printf("ProcessUSBInput\n");
+    //printw("ProcessUSBInput\n");
 
     // process data from receive queue
     if (!USBQueue_IsEmpty(inputQueue)) {
         USBMessage *m = USBQueue_Dequeue(inputQueue);
 
-        printf("Received a message.\n");
-        printf("Message comm:   %d\n", (int) m->comm);
-        printf("Message sid:    %d\n", USBMessage_Get_SID(m));
-        printf("Message length: %d\n", (int) m->length);
-        printf("Message data: %d\n", (int) char_Array_to_Int(m->data));
+        printw("Received a message.\n");
+        printw("Message comm:   %d\n", (int) m->comm);
+        printw("Message sid:    %d\n", USBMessage_Get_SID(m));
+        printw("Message length: %d\n", (int) m->length);
+        printw("Message data: %d\n", (int) char_Array_to_Int(m->data));
+
+        refresh();
 
         free(m);
     }
@@ -211,89 +216,123 @@ void ProcessUSBInput(USBQueue *inputQueue, USBQueue *outputQueue) {
     // send some test data
     // TEST _ JOSEPH
     if (USBQueue_Length(outputQueue) < MAX_QUEUE_LENGTH) {
-        printf("+++PLEASE ENTER DATA TO SEND+++\n>");
-        input_test = true;
-        while (input_test) {
-            scanf("%d", &input_data);
-            if (input_data <= 99 && input_data >= 0) {
-                
-                output_data[0] = (char) ((input_data >> 24) & 0xFF);
-                output_data[1] = (char) ((input_data >> 16) & 0xFF);
-                output_data[2] = (char) ((input_data >> 8) & 0xFF);
-                output_data[3] = (char) ((input_data) & 0xFF);
-
-                input_test = false;
-            } else {
-                printf("++Please make sure the number is between 0 and 99\n>");
-            }
+        
+        char c = getch();
+        switch (c) {
+            case '1':
+                int_to_bytes(output_data, 0);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '2':
+                int_to_bytes(output_data, 11);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '3':
+                int_to_bytes(output_data, 22);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '4':
+                int_to_bytes(output_data, 33);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '5':
+                int_to_bytes(output_data, 44);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '6':
+                int_to_bytes(output_data, 55);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '7':
+                int_to_bytes(output_data, 66);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '8':
+                int_to_bytes(output_data, 77);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '9':
+                int_to_bytes(output_data, 88);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case '0':
+                int_to_bytes(output_data, 99);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = speed_sid_str[i];
+                break;
+            case 'q':
+                int_to_bytes(output_data, 0);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'w':
+                int_to_bytes(output_data, 11);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'e':
+                int_to_bytes(output_data, 22);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'r':
+                int_to_bytes(output_data, 33);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 't':
+                int_to_bytes(output_data, 44);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'y':
+                int_to_bytes(output_data, 55);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'u':
+                int_to_bytes(output_data, 66);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'i':
+                int_to_bytes(output_data, 77);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'o':
+                int_to_bytes(output_data, 88);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case 'p':
+                int_to_bytes(output_data, 99);
+                for (int i = 0; i < 20; i++)
+                    output_sid_str[i] = battery_sid_str[i];
+                break;
+            case ERR:
+            default:
+                return;
+                break;
         }
-        
-        printf("+=Here is your number to send = %s\n", output_data);
-        
-        printf("+-LIGHTS = %d\n", signalHash(lights_sid_str, 0));
-        printf("+-TURN_SIGNAL = %d\n", signalHash(turn_signal_sid_str, 0));
-        printf("+-BATTERY = %d\n", signalHash(battery_sid_str, 0));
-        printf("+-SPEED = %d\n", signalHash(speed_sid_str, 0));
-        
-        printf("===Send to which object (sid)? (Enum{ lights = 1, turn_signal=2, battery=3, speed=4, hazard=5, AC=6, wipers=7})===\n>");
-        input_test = true;
-        while (input_test) {
-            scanf("%d", &input_data);
-            if (input_data < 8 && input_data > 0) {
 
-                switch (input_data) {
-                    case 1:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = lights_sid_str[i];
-                            printf("got to lights\n");
-                        break;
-                    case 2:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = turn_signal_sid_str[i];
-                            printf("got to turn signal\n");
-                        break;
-                    case 3:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = battery_sid_str[i];
-                            printf("got to battery\n");
-                        break;
-                    case 4:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = speed_sid_str[i];
-                        break;
-                    case 5:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = hazard_sid_str[i];
-                        break;
-                    case 6:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = defrost_sid_str[i];
-                        break;
-                    case 7:
-                        for (int i = 0; i < 20; i++)
-                            output_sid_str[i] = wipers_sid_str[i];
-                        break;
-                    default:
-                        break;
-                }
-
-                input_test = false;
-            } else {
-                printf("==Please make sure the number is between 1 and 4\n>");
-            }
-        
-        }
         
         USBMessage *outputMessage = (USBMessage *) malloc(sizeof(USBMessage));
-
-        //char data_send[20] = "abcd: this is a test";
-        
         USBMessage_Init(outputMessage,
                         USBMESSAGE_COMM_SET_VAR,
                         output_sid_str,
                         4, // length
                         output_data);
-        printf("+=Here is your sid to send = %d\n", USBMessage_Get_SID(outputMessage));
+        //printw("+=Here is your sid to send = %d\n", USBMessage_Get_SID(outputMessage));
         USBQueue_Enqueue(outputQueue, outputMessage);
     }
 }
@@ -303,7 +342,7 @@ static int mainPhase(){
     char buffer;
     int response;
     static int transferred;
-    
+
     USBQueue inputQueue;
     USBQueue_Init(&inputQueue);
     USBQueue outputQueue;
@@ -322,7 +361,8 @@ static int mainPhase(){
 static int init(){
     libusb_init(NULL);
     if((handle = libusb_open_device_with_vid_pid(NULL, VID, PID)) == NULL){
-        fprintf(stdout, "Problem acquireing handle\n");
+        printw( "Problem acquireing handle\n");
+        refresh();
         return -1;
     }
     libusb_claim_interface(handle, 0);
@@ -366,7 +406,8 @@ static int setupAccessory(
     if(response < 0){error(response);return-1;}
 
     devVersion = ioBuffer[1] << 8 | ioBuffer[0];
-    fprintf(stdout,"Verion Code Device: %d\n", devVersion);
+    printw("Verion Code Device: %d\n", devVersion);
+    refresh();
     
     sleep(1);//sometimes hangs on the next transfer :(
 
@@ -383,12 +424,14 @@ static int setupAccessory(
     response = libusb_control_transfer(handle,0x40,52,0,5,(char*)serialNumber,strlen(serialNumber)+1,0);
     if(response < 0){error(response);return -1;}
 
-    fprintf(stdout,"Accessory Identification sent %d\n", devVersion);
+    printw("Accessory Identification sent %d\n", devVersion);
+    refresh();
 
     response = libusb_control_transfer(handle,0x40,53,0,0,NULL,0,0);
     if(response < 0){error(response);return -1;}
 
-    fprintf(stdout,"Attempted to put device into accessory mode %d\n", devVersion);
+    printw("Attempted to put device into accessory mode %d\n", devVersion);
+    refresh();
 
     if(handle != NULL)
         libusb_release_interface (handle, 0);
@@ -398,7 +441,8 @@ static int setupAccessory(
         tries--;
         if((handle = libusb_open_device_with_vid_pid(NULL, ACCESSORY_VID, ACCESSORY_PID)) == NULL){
             if(tries < 0){
-                fprintf(stdout, "Something at that point...\n");
+                printw( "Something at that point...\n");
+                refresh();
                 return -1;
             }
         }else{
@@ -407,83 +451,107 @@ static int setupAccessory(
         sleep(1);
     }
     libusb_claim_interface(handle, 0);
-    fprintf(stdout, "Interface claimed, ready to transfer data\n");
+    printw( "Interface claimed, ready to transfer data\n");
+    refresh();
     return 0;
 }
 
 static void error(int code){
-    fprintf(stdout,"\n");
+    printw("\n");
+    refresh();
     switch(code){
     case LIBUSB_ERROR_IO:
-        fprintf(stdout,"Error: LIBUSB_ERROR_IO\nInput/output error.\n");
+        printw("Error: LIBUSB_ERROR_IO\nInput/output error.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_INVALID_PARAM:
-        fprintf(stdout,"Error: LIBUSB_ERROR_INVALID_PARAM\nInvalid parameter.\n");
+        printw("Error: LIBUSB_ERROR_INVALID_PARAM\nInvalid parameter.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_ACCESS:
-        fprintf(stdout,"Error: LIBUSB_ERROR_ACCESS\nAccess denied (insufficient permissions).\n");
+        printw("Error: LIBUSB_ERROR_ACCESS\nAccess denied (insufficient permissions).\n");
+        refresh();
         break;
     case LIBUSB_ERROR_NO_DEVICE:
-        fprintf(stdout,"Error: LIBUSB_ERROR_NO_DEVICE\nNo such device (it may have been disconnected).\n");
+        printw("Error: LIBUSB_ERROR_NO_DEVICE\nNo such device (it may have been disconnected).\n");
+        refresh();
         break;
     case LIBUSB_ERROR_NOT_FOUND:
-        fprintf(stdout,"Error: LIBUSB_ERROR_NOT_FOUND\nEntity not found.\n");
+        printw("Error: LIBUSB_ERROR_NOT_FOUND\nEntity not found.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_BUSY:
-        fprintf(stdout,"Error: LIBUSB_ERROR_BUSY\nResource busy.\n");
+        printw("Error: LIBUSB_ERROR_BUSY\nResource busy.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_TIMEOUT:
-        fprintf(stdout,"Error: LIBUSB_ERROR_TIMEOUT\nOperation timed out.\n");
+        printw("Error: LIBUSB_ERROR_TIMEOUT\nOperation timed out.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_OVERFLOW:
-        fprintf(stdout,"Error: LIBUSB_ERROR_OVERFLOW\nOverflow.\n");
+        printw("Error: LIBUSB_ERROR_OVERFLOW\nOverflow.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_PIPE:
-        fprintf(stdout,"Error: LIBUSB_ERROR_PIPE\nPipe error.\n");
+        printw("Error: LIBUSB_ERROR_PIPE\nPipe error.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_INTERRUPTED:
-        fprintf(stdout,"Error:LIBUSB_ERROR_INTERRUPTED\nSystem call interrupted (perhaps due to signal).\n");
+        printw("Error:LIBUSB_ERROR_INTERRUPTED\nSystem call interrupted (perhaps due to signal).\n");
+        refresh();
         break;
     case LIBUSB_ERROR_NO_MEM:
-        fprintf(stdout,"Error: LIBUSB_ERROR_NO_MEM\nInsufficient memory.\n");
+        printw("Error: LIBUSB_ERROR_NO_MEM\nInsufficient memory.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_NOT_SUPPORTED:
-        fprintf(stdout,"Error: LIBUSB_ERROR_NOT_SUPPORTED\nOperation not supported or unimplemented on this platform.\n");
+        printw("Error: LIBUSB_ERROR_NOT_SUPPORTED\nOperation not supported or unimplemented on this platform.\n");
+        refresh();
         break;
     case LIBUSB_ERROR_OTHER:
-        fprintf(stdout,"Error: LIBUSB_ERROR_OTHER\nOther error.\n");
+        printw("Error: LIBUSB_ERROR_OTHER\nOther error.\n");
+        refresh();
         break;
     default:
-        fprintf(stdout, "Error: unkown error\n");
+        printw( "Error: unkown error\n");
+        refresh();
     }
 }
 
 static void status(int code){
-    fprintf(stdout,"\n");
+    printw("\n");
     switch(code){
         case LIBUSB_TRANSFER_COMPLETED:
-            fprintf(stdout,"Success: LIBUSB_TRANSFER_COMPLETED\nTransfer completed.\n");
+            printw("Success: LIBUSB_TRANSFER_COMPLETED\nTransfer completed.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_ERROR:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_ERROR\nTransfer failed.\n");
+            printw("Error: LIBUSB_TRANSFER_ERROR\nTransfer failed.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_TIMED_OUT:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_TIMED_OUT\nTransfer timed out.\n");
+            printw("Error: LIBUSB_TRANSFER_TIMED_OUT\nTransfer timed out.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_CANCELLED:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_CANCELLED\nTransfer was cancelled.\n");
+            printw("Error: LIBUSB_TRANSFER_CANCELLED\nTransfer was cancelled.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_STALL:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_STALL\nFor bulk/interrupt endpoints: halt condition detected (endpoint stalled).\nFor control endpoints: control request not supported.\n");
+            printw("Error: LIBUSB_TRANSFER_STALL\nFor bulk/interrupt endpoints: halt condition detected (endpoint stalled).\nFor control endpoints: control request not supported.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_NO_DEVICE:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_NO_DEVICE\nDevice was disconnected.\n");
+            printw("Error: LIBUSB_TRANSFER_NO_DEVICE\nDevice was disconnected.\n");
+            refresh();
             break;
         case LIBUSB_TRANSFER_OVERFLOW:
-            fprintf(stdout,"Error: LIBUSB_TRANSFER_OVERFLOW\nDevice sent more data than requested.\n");
+            printw("Error: LIBUSB_TRANSFER_OVERFLOW\nDevice sent more data than requested.\n");
+            refresh();
             break;
         default:
-            fprintf(stdout,"Error: unknown error\nTry again(?)\n");
+            printw("Error: unknown error\nTry again(?)\n");
+            refresh();
             break;
     }
 }
