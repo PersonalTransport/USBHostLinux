@@ -8,6 +8,15 @@ Used to interface with the Android UI.
 
 Currently, the program just sends data and waits for responses to test communication.
 
+### Branches
+- This Git repo followed a centralized workflow due to the number of people working on it (~2).
+ 
+* master -
+ * Creator: Ricky
+ * Purpose: master branch for code, most commits went on this branch. Ricky performed most of code edits, so conflicts were rare.
+* realtime_branch -
+ * Creator: Ricky
+ * Purpose: new test branch to try to get c-code to run asynchronously (still being developed)
 
 ### Instructions to Run C-code (from Linux) - for use with associated Android Studio Project:
 
