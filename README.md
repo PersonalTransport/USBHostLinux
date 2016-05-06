@@ -16,6 +16,6 @@ Currently, the program just sends data and waits for responses to test communica
 - Extra: Possibly update VID and PID in USBHostLinux.c to your android's VID and PID (#define VID 0x22b8, for example). Use "lsusb -v | less" and find your device (look at the idVendor & idProduct ==> replace VID and PID with numbers)
 - run "make"
 - run "sudo ./USBHostLinux" (verify android device is plugged into a usb port, the app is loaded, and it is not in accessory mode yet)
--- first input prompt: integer between 0 and 99
--- second input prompt: integer between 0 and 7
--* NOTE: Since communication structure waits for a recieve after a send, it will block indefinately. To pass this, just click one of the buttons (turn signal, lights, wipers, etc.) and the c-code should recieve the information (and continue).
+ - first input prompt: integer between 0 and 99
+ - second input prompt: integer between 0 and 7
+  * NOTE: Since communication structure waits for a recieve after a send, it will block indefinately. To pass this, just click one of the buttons (turn signal, lights, wipers, etc.) and the c-code should recieve the information (and continue).
